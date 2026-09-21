@@ -104,6 +104,8 @@ bool parseColor(uint8_t *payload, size_t length) {
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload,
                     size_t length) {
+    bool mqttUpdateRequired = false;
+
     // Disable Accesspoint Mode Disable Timer on Web Event
     if (statusAccessPoint > 0) {
         statusAccessPoint = 0;
@@ -134,6 +136,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload,
 
         uint8_t command = split(payload, 0);
         G.param1 = 0;
+        mqttUpdateRequired = command < PLACEHOLDER_MAX_SET;
 
         switch (command) {
         case COMMAND_MODE_WORD_CLOCK: {
@@ -639,5 +642,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload,
         break;
     }
 
-    sendMQTTUpdate();
+    if (mqttUpdateRequired)
+        sendMQTTUpdate();
 }

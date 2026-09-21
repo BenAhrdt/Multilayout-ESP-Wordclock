@@ -159,6 +159,7 @@ const DEFAULT_TIMEZONE = "CET-1CEST,M3.5.0,M10.5.0/3";
 
 // color pickers
 let colorPicker;
+let colorPickerIsSyncing = false;
 
 /**
  * Indicates local development of the webinterface.
@@ -542,6 +543,8 @@ function initWebsocket() {
 }
 
 function changeColor(color) {
+	if (colorPickerIsSyncing) return;
+
 	hsb[colorPosition][0] = color.hue;
 	hsb[colorPosition][1] = color.saturation;
 	if (color.value !== 100) {
@@ -576,7 +579,12 @@ function setColors() {
 		s: hsb[colorPosition][1],
 		v: hsb[colorPosition][2]
 	};
-	colorPicker.setColors([hsbFg]);
+	colorPickerIsSyncing = true;
+	try {
+		colorPicker.setColors([hsbFg]);
+	} finally {
+		colorPickerIsSyncing = false;
+	}
 }
 
 function setSliders() {

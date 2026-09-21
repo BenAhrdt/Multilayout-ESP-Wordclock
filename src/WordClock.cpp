@@ -13,6 +13,7 @@
 #include <Update.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <esp_system.h>
 #include <esp_sntp.h>
 #endif
 
@@ -77,6 +78,8 @@ Network network;
 // that callback can leave the MQTT connection unable to process subsequent
 // commands. Coalesce web-triggered updates and publish them from loop().
 bool mqttStateUpdatePending = false;
+uint32_t mqttStateUpdateRequestedAt = 0;
+constexpr uint32_t MQTT_STATE_UPDATE_DEBOUNCE_MS = 250;
 
 void setDefaultHardwarePins();
 bool hardwarePinsAreValid();
@@ -112,6 +115,18 @@ static_assert(sizeof(G) < EEPROM_SIZE,
               "Configuration data is too large for reserved EEPROM storage");
 
 uint16_t powerCycleCount = 0; // Variable to store power cycle count
+
+//------------------------------------------------------------------------------
+
+void printResetReason() {
+#ifdef ESP8266
+    Serial.print("Reset reason     : ");
+    Serial.println(ESP.getResetInfo());
+#elif defined(ESP32)
+    Serial.printf("Reset reason     : %u\n",
+                  static_cast<unsigned int>(esp_reset_reason()));
+#endif
+}
 
 //------------------------------------------------------------------------------
 
@@ -171,6 +186,7 @@ void incrementPowerCycleCount() {
 
 void sendMQTTUpdate() {
     mqttStateUpdatePending = true;
+    mqttStateUpdateRequestedAt = millis();
 }
 
 //------------------------------------------------------------------------------
@@ -306,6 +322,7 @@ void setup() {
     Serial.println("--------------------------------------");
     Serial.println("Begin Setup");
     Serial.println("--------------------------------------");
+    printResetReason();
 #endif
     //-------------------------------------
     // Read / initialize EEPROM
@@ -732,7 +749,9 @@ void loop() {
     //------------------------------------------------
     if (G.mqtt.state && WiFi.status() == WL_CONNECTED) {
         mqtt.loop();
-        if (mqttStateUpdatePending && mqtt.isConnected()) {
+        if (mqttStateUpdatePending && mqtt.isConnected() &&
+            millis() - mqttStateUpdateRequestedAt >=
+                MQTT_STATE_UPDATE_DEBOUNCE_MS) {
             mqttStateUpdatePending = false;
             mqtt.sendState();
         }
